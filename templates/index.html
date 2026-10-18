@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        .photos {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 15px;
+}
+
+.exercise-photo {
+    display: block;
+    width: 100%;
+    max-width: 420px;
+    max-height: 350px;
+    object-fit: contain;
+    border-radius: 12px;
+    background: white;
+}
+
+.camera {
+    position: relative;
+    overflow: hidden;
+    min-height: 250px;
+}
+
+#video,
+#canvas {
+    width: 100%;
+    max-width: 100%;
+    display: block;
+    border-radius: 12px;
+}
+
+#canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+#placeholder {
+    display: flex;
+    min-height: 250px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI RehabCare</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+</head>
+
+<body>
+
+<header>
+    <div>
+        <small>MOVEMENT SUPPORT • AT YOUR PACE</small>
+        <h1>AI RehabCare</h1>
+        <p>Beginner-friendly rehabilitation exercise guide.</p>
+    </div>
+</header>
+
+<main>
+
+    <!-- SECTION 1: EXERCISE SELECTION -->
+    <section class="card">
+        <h2>1. Choose Exercise and Time</h2>
+
+        <label for="exercise">Select Exercise</label>
+        <select id="exercise">
+            <option value="">Loading exercises...</option>
+        </select>
+
+        <div class="grid">
+
+            <div>
+                <label for="delay">Preparation Countdown</label>
+                <select id="delay">
+                    <option value="0">Start camera now</option>
+                    <option value="1">1 minute</option>
+                    <option value="3">3 minutes</option>
+                    <option value="5" selected>5 minutes</option>
+                    <option value="10">10 minutes</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="duration">Exercise Duration</label>
+                <select id="duration">
+                    <option value="1">1 minute</option>
+                    <option value="3" selected>3 minutes</option>
+                    <option value="5">5 minutes</option>
+                    <option value="10">10 minutes</option>
+                    <option value="15">15 minutes</option>
+                </select>
+            </div>
+
+        </div>
+
+        <label for="language">Voice Language</label>
+        <select id="language">
+            <option value="en-US">English</option>
+            <option value="kn-IN">Kannada</option>
+        </select>
+
+        <div class="buttons">
+            <button id="start" class="primary">Start Session</button>
+            <button id="stop" disabled>Stop</button>
+        </div>
+
+        <p class="note">
+            Study the exercise instructions during preparation.
+            The camera should start when the countdown finishes.
+        </p>
+
+        <div id="status" class="status">
+            Choose an exercise to begin.
+        </div>
+
+        <div class="grid timers">
+
+            <div>
+                <small>Preparation Countdown</small>
+                <strong id="countdown">—</strong>
+            </div>
+
+            <div>
+                <small>Exercise Time Left</small>
+                <strong id="remaining">—</strong>
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- SECTION 2: EXERCISE PHOTO -->
+    <section class="card">
+
+        <h2>2. Exercise Guide</h2>
+
+        <h3 id="title">Choose an exercise</h3>
+
+        <div id="photos" class="photos">
+            <p>Select an exercise to see its reference photo.</p>
+        </div>
+
+        <h3>Instructions</h3>
+
+        <ol id="steps"></ol>
+
+        <p class="note">
+            Move slowly and stay within a comfortable range.
+            Stop if you experience pain or dizziness.
+        </p>
+
+    </section>
+
+
+    <!-- SECTION 3: CAMERA -->
+    <section class="card">
+
+        <h2>3. Live Camera</h2>
+
+        <div class="camera">
+
+            <video id="video" playsinline muted></video>
+
+            <canvas id="canvas"></canvas>
+
+            <div id="placeholder">
+                Camera will start after preparation.
+            </div>
+
+        </div>
+
+        <div class="feedback">
+
+            <small>Latest Feedback</small>
+
+            <strong id="feedback">
+                Waiting to start...
+            </strong>
+
+            <p id="support"></p>
+
+        </div>
+
+    </section>
+
+
+    <!-- SECTION 4: PROGRESS -->
+    <section class="card">
+
+        <h2>4. Progress Dashboard</h2>
+
+        <div class="grid stats">
+
+            <div>
+                <small>Completed Sessions</small>
+                <strong id="count">0</strong>
+            </div>
+
+            <div>
+                <small>Total Exercise Time</small>
+                <strong id="total">0 min</strong>
+            </div>
+
+        </div>
+
+        <h3>Recent Sessions</h3>
+        <div id="history">No sessions yet.</div>
+
+        <h3>Last Recorded Days</h3>
+        <div id="chart"></div>
+
+    </section>
+
+
+    <!-- SAFETY -->
+    <div class="safety">
+        <b>Safety:</b>
+        This is a demonstration application, not a medical device.
+        Follow your healthcare professional's advice.
+        Stop if you experience pain, dizziness, or unusual discomfort.
+    </div>
+
+</main>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+
+</body>
+<script>
+    const exerciseSelect = document.getElementById("exercise");
+const delaySelect = document.getElementById("delay");
+const durationSelect = document.getElementById("duration");
+const startButton = document.getElementById("start");
+const stopButton = document.getElementById("stop");
+const statusBox = document.getElementById("status");
+const titleBox = document.getElementById("title");
+const stepsBox = document.getElementById("steps");
+const photosBox = document.getElementById("photos");
+const countdownBox = document.getElementById("countdown");
+const remainingBox = document.getElementById("remaining");
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const placeholder = document.getElementById("placeholder");
+const feedbackBox = document.getElementById("feedback");
+const supportBox = document.getElementById("support");
+const languageSelect = document.getElementById("language");
+
+let exercises = [];
+let countdownTimer = null;
+let exerciseTimer = null;
+let cameraStream = null;
+let sessionRunning = false;
+let pose = null;
+let cameraReady = false;
+let lastSpoken = "";
+
+async function loadExercises() {
+    try {
+        const response = await fetch("/api/exercises");
+        if (!response.ok) throw new Error("Could not load exercises.");
+
+        exercises = await response.json();
+        exerciseSelect.innerHTML = "";
+
+        exercises.forEach(exercise => {
+            const option = document.createElement("option");
+            option.value = exercise.name;
+            option.textContent = exercise.name;
+            exerciseSelect.appendChild(option);
+        });
+
+        showExercise();
+        statusBox.textContent = `${exercises.length} exercises loaded.`;
+    } catch (error) {
+        statusBox.textContent = error.message;
+    }
+}
+
+function showExercise() {
+    const exercise = exercises.find(item => item.name === exerciseSelect.value);
+    if (!exercise) return;
+
+    titleBox.textContent = exercise.name;
+    stepsBox.innerHTML = "";
+
+    (exercise.steps || []).forEach(step => {
+        const li = document.createElement("li");
+        li.textContent = step;
+        stepsBox.appendChild(li);
+    });
+
+    photosBox.innerHTML = "";
+
+    if (exercise.photo) {
+        const img = document.createElement("img");
+        img.src = exercise.photo;
+        img.alt = `${exercise.name} reference`;
+        img.className = "exercise-photo";
+        img.onerror = () => {
+            photosBox.textContent =
+                "This image could not load. Please check the image link.";
+        };
+        photosBox.appendChild(img);
+
+        const caption = document.createElement("p");
+        caption.textContent = `Example: ${exercise.name}`;
+        photosBox.appendChild(caption);
+    } else {
+        photosBox.textContent =
+            "No reference image is configured for this exercise. Follow the written steps.";
+    }
+
+    feedbackBox.textContent = "Waiting to start…";
+    supportBox.textContent = "";
+}
+
+function speak(message) {
+    if (!("speechSynthesis" in window) || message === lastSpoken) return;
+
+    lastSpoken = message;
+    speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(message);
+    utterance.lang = languageSelect.value || "en-US";
+    utterance.rate = 0.9;
+    speechSynthesis.speak(utterance);
+}
+
+function formatTime(seconds) {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min}:${String(sec).padStart(2, "0")}`;
+}
+
+async function startCamera() {
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("Camera access requires HTTPS or localhost.");
+        }
+
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" },
+            audio: false
+        });
+
+        video.srcObject = cameraStream;
+        await video.play();
+
+        placeholder.style.display = "none";
+        cameraReady = true;
+        statusBox.textContent = "Camera started. Exercise session is running.";
+        feedbackBox.textContent = "Camera ready. Follow the exercise guide.";
+        speak("Your camera is ready. Begin slowly and safely.");
+
+        return true;
+    } catch (error) {
+        statusBox.textContent =
+            `Could not open camera: ${error.message}. Allow camera permission.`;
+        placeholder.style.display = "flex";
+        return false;
+    }
+}
+
+function startExerciseTimer(minutes) {
+    let seconds = minutes * 60;
+
+    remainingBox.textContent = formatTime(seconds);
+
+    clearInterval(exerciseTimer);
+
+    exerciseTimer = setInterval(() => {
+        if (!sessionRunning) return;
+
+        seconds--;
+        remainingBox.textContent = formatTime(Math.max(0, seconds));
+
+        if (seconds <= 0) {
+            stopSession("Exercise time finished.");
+        }
+    }, 1000);
+}
+
+async function runPreparation(minutes) {
+    let seconds = minutes * 60;
+
+    if (seconds <= 0) {
+        countdownBox.textContent = "0:00";
+        const ok = await startCamera();
+        if (ok) startExerciseTimer(Number(durationSelect.value));
+        else stopSession("Camera could not start.");
+        return;
+    }
+
+    countdownBox.textContent = formatTime(seconds);
+
+    countdownTimer = setInterval(async () => {
+        if (!sessionRunning) {
+            clearInterval(countdownTimer);
+            return;
+        }
+
+        seconds--;
+        countdownBox.textContent = formatTime(Math.max(0, seconds));
+
+        if (seconds <= 0) {
+            clearInterval(countdownTimer);
+            countdownBox.textContent = "Preparation finished";
+
+            const ok = await startCamera();
+            if (ok) {
+                startExerciseTimer(Number(durationSelect.value));
+            } else {
+                stopSession("Camera could not start.");
+            }
+        }
+    }, 1000);
+}
+
+startButton.addEventListener("click", async () => {
+    if (sessionRunning) return;
+
+    const selectedExercise = exerciseSelect.value;
+    if (!selectedExercise) {
+        statusBox.textContent = "Please select an exercise.";
+        return;
+    }
+
+    showExercise();
+
+    try {
+        const response = await fetch("/api/session/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                exercise: selectedExercise,
+                duration: Number(durationSelect.value)
+            })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || "Session start failed.");
+        }
+
+        sessionRunning = true;
+        startButton.disabled = true;
+        stopButton.disabled = false;
+
+        statusBox.textContent = "Preparation started. Study the exercise image.";
+        speak("Preparation started. Study the exercise instructions.");
+
+        await runPreparation(Number(delaySelect.value));
+    } catch (error) {
+        statusBox.textContent = error.message;
+        sessionRunning = false;
+        startButton.disabled = false;
+        stopButton.disabled = true;
+    }
+});
+
+async function stopSession(message = "Exercise stopped.") {
+    sessionRunning = false;
+    clearInterval(countdownTimer);
+    clearInterval(exerciseTimer);
+
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+
+    video.srcObject = null;
+    cameraReady = false;
+    placeholder.style.display = "flex";
+    placeholder.textContent = "Camera will start after the countdown.";
+
+    countdownBox.textContent = "—";
+    remainingBox.textContent = "—";
+    statusBox.textContent = message;
+
+    startButton.disabled = false;
+    stopButton.disabled = true;
+
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+
+    try {
+        await fetch("/api/session/stop", { method: "POST" });
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+stopButton.addEventListener("click", () => stopSession());
+
+exerciseSelect.addEventListener("change", showExercise);
+
+window.addEventListener("beforeunload", () => {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+    }
+});
+
+loadExercises();
+</script>
+</html>
